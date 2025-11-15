@@ -1,0 +1,12 @@
+{
+  "name": "Photo Drop Upload",
+  "description": "Continuously watches a staging folder for new pictures and syncs them to a Proton Drive share (ideal for dropping files from mobile devices).",
+  "local_path": "~/Pictures/ToProton",
+  "remote_path": "Shares/Photos",
+  "direction": "upload",
+  "watch": true,
+  "watch_debounce": "15s",
+  "extra_rclone_args": [
+    "--copy-links"
+  ]
+}

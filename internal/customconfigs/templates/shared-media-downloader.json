@@ -1,0 +1,11 @@
+{
+  "name": "Shared Media Downloader",
+  "description": "Keeps a Proton Drive share (for example Shared/Family-Photos) mirrored locally so media centers or digital frames can read the files offline.",
+  "local_path": "~/ProtonShares/FamilyPhotos",
+  "remote_path": "Shared/Family-Photos",
+  "direction": "download",
+  "watch": false,
+  "extra_rclone_args": [
+    "--copy-links"
+  ]
+}
