@@ -218,6 +218,8 @@ func runConfigure(remote string, args []string) error {
 	email := fs.String("email", "", "ProtonMail email address")
 	password := fs.String("password", "", "ProtonMail password (use with caution)")
 	passwordStdin := fs.Bool("password-stdin", false, "Read password from stdin")
+	mailboxPassword := fs.String("mailbox-password", "", "ProtonMail Mailbox password (Optional)")
+	mailboxPasswordStdin := fs.String("mailbox-password-stdin", "", "Read mailbox password from stdin")
 	twofa := fs.String("twofa", "", "Optional 2FA code")
 	twofaStdin := fs.Bool("twofa-stdin", false, "Read 2FA code from stdin")
 	nonInteractive := fs.Bool("non-interactive", false, "Fail instead of prompting")
@@ -259,6 +261,17 @@ func runConfigure(remote string, args []string) error {
 		return errors.New("password is required for configuration")
 	}
 
+	passMailValue := strings.TrimSpace(*mailboxPassword)
+	var errb error
+	if *mailboxPasswordStdin != "" {
+		passMailValue, errb = readLine(reader)
+	} else if passMailValue == "" && !*nonInteractive {
+		passMailValue, errb = promptPassword("ProtonMail Mailbox password (leave empty if unused): ")
+	}
+	if errb != nil {
+		return errb
+	}
+
 	twofaValue := strings.TrimSpace(*twofa)
 	if *twofaStdin {
 		twofaValue, err = readLine(reader)
@@ -273,7 +286,7 @@ func runConfigure(remote string, args []string) error {
 		twofaValue = value
 	}
 
-	if err := configureRemote(remote, *email, passValue, twofaValue, false); err != nil {
+	if err := configureRemote(remote, *email, passValue, passMailValue, twofaValue, false); err != nil {
 		return err
 	}
 
@@ -295,6 +308,7 @@ func runConfigure(remote string, args []string) error {
 		record := storedCredentials{
 			Email:    *email,
 			Password: passValue,
+			MailboxPassword: passMailValue,
 			TwoFA:    twofaValue,
 			SavedAt:  time.Now(),
 		}
@@ -938,7 +952,7 @@ func writeBuiltinConfig(name string, force bool) (string, error) {
 	return dest, nil
 }
 
-func configureRemote(remote, email, password, twofa string, quiet bool) error {
+func configureRemote(remote, email, password, mailboxpassword, twofa string, quiet bool) error {
 	if !quiet {
 		fmt.Printf("Configuring rclone remote '%s'...\n", remote)
 	}
@@ -956,6 +970,9 @@ func configureRemote(remote, email, password, twofa string, quiet bool) error {
 	}
 	if strings.TrimSpace(twofa) != "" {
 		cmd = append(cmd, fmt.Sprintf("2fa=%s", twofa))
+	}
+	if strings.TrimSpace(mailboxpassword) != "" {
+		cmd = append(cmd, fmt.Sprintf("mailbox_password=%s", mailboxpassword))
 	}
 	if _, err := runRcloneCapture(cmd...); err != nil {
 		return fmt.Errorf("rclone config create failed: %w", err)
@@ -1067,7 +1084,7 @@ func tryAutoRefresh(remote string) error {
 	if err != nil {
 		return err
 	}
-	if err := configureRemote(remote, creds.Email, creds.Password, creds.TwoFA, true); err != nil {
+	if err := configureRemote(remote, creds.Email, creds.Password, creds.MailboxPassword, creds.TwoFA, true); err != nil {
 		return err
 	}
 	fmt.Println("Credentials refreshed from the local vault.")
@@ -1111,6 +1128,7 @@ func resolveVaultPassphrase(reader *bufio.Reader, provided string, fromStdin boo
 type storedCredentials struct {
 	Email    string    `json:"email"`
 	Password string    `json:"password"`
+	MailboxPassword string `json:"mailboxpassword"`
 	TwoFA    string    `json:"twofa"`
 	SavedAt  time.Time `json:"saved_at"`
 }
