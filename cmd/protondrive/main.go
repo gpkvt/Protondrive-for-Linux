@@ -227,6 +227,8 @@ func runConfigure(remote string, args []string) error {
 	storeCreds := fs.Bool("store-credentials", false, "Encrypt credentials locally for automatic reauth")
 	vaultPass := fs.String("vault-passphrase", "", "Passphrase used for --store-credentials (use with caution)")
 	vaultPassStdin := fs.Bool("vault-passphrase-stdin", false, "Read vault passphrase from stdin")
+	localPath := fs.String("local-path", "", "Local path for sync command (Optional)")
+
 	if err := parseCommandFlags(fs, args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
@@ -286,7 +288,17 @@ func runConfigure(remote string, args []string) error {
 		twofaValue = value
 	}
 
-	if err := configureRemote(remote, *email, passValue, passMailValue, twofaValue, false); err != nil {
+	localPathValue := strings.TrimSpace(*localPath)
+    if localPathValue == "" && !*nonInteractive {
+		value, err := promptLine(reader, "Local path for sync (leave empty if unused): ")
+		if err != nil {
+			return err
+		}
+		localPathValue = value
+	}
+
+
+	if err := configureRemote(remote, *email, passValue, passMailValue, localPathValue, twofaValue, false); err != nil {
 		return err
 	}
 
@@ -952,7 +964,7 @@ func writeBuiltinConfig(name string, force bool) (string, error) {
 	return dest, nil
 }
 
-func configureRemote(remote, email, password, mailboxpassword, twofa string, quiet bool) error {
+func configureRemote(remote, email, password, mailboxpassword, localpath, twofa string, quiet bool) error {
 	if !quiet {
 		fmt.Printf("Configuring rclone remote '%s'...\n", remote)
 	}
@@ -973,6 +985,9 @@ func configureRemote(remote, email, password, mailboxpassword, twofa string, qui
 	}
 	if strings.TrimSpace(mailboxpassword) != "" {
 		cmd = append(cmd, fmt.Sprintf("mailbox_password=%s", mailboxpassword))
+	}
+	if strings.TrimSpace(localpath) != "" {
+		cmd = append(cmd, fmt.Sprintf("local_path=%s", localpath))
 	}
 	if _, err := runRcloneCapture(cmd...); err != nil {
 		return fmt.Errorf("rclone config create failed: %w", err)
@@ -1084,7 +1099,8 @@ func tryAutoRefresh(remote string) error {
 	if err != nil {
 		return err
 	}
-	if err := configureRemote(remote, creds.Email, creds.Password, creds.MailboxPassword, creds.TwoFA, true); err != nil {
+	fmt.Println(creds)
+	if err := configureRemote(remote, creds.Email, creds.Password, creds.MailboxPassword, creds.LocalPath, creds.TwoFA,  true); err != nil {
 		return err
 	}
 	fmt.Println("Credentials refreshed from the local vault.")
@@ -1130,6 +1146,7 @@ type storedCredentials struct {
 	Password string    `json:"password"`
 	MailboxPassword string `json:"mailboxpassword"`
 	TwoFA    string    `json:"twofa"`
+	LocalPath string   `json:localpath`
 	SavedAt  time.Time `json:"saved_at"`
 }
 
